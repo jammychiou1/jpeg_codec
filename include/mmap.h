@@ -3,8 +3,18 @@
 
 #include <cstdint>
 #include <string>
-#include <utility>
+#include <stdexcept>
 
-std::pair<int, uint8_t*> map_file(std::string filename);
+struct mapped_file {
+    const uint8_t* ptr;
+    int size;
+    uint8_t operator[](int offset) {
+      if (offset < 0 || offset >= size) {
+        throw std::logic_error("bad index");
+      }
+      return ptr[offset];
+    }
+    void load_file(std::string filename);
+};
 
 #endif // MMAP_H
