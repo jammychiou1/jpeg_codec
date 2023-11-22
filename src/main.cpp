@@ -138,6 +138,47 @@ int read_frame(mapped_file mmap, int offset) {
   return 2 + size;
 }
 
+int read_entropy_coded(mapped_file mmap, int offset) {
+  marker_t next_marker;
+  int left = 0;
+  int right = 0;
+  bool finish = false;
+  while (!finish) {
+    right = left;
+    while (true) {
+      if (mmap[offset + right] != 0xff) {
+        right++;
+        continue;
+      }
+      if (mmap[offset + right + 1] == 0x00) {
+        right += 2;
+        continue;
+      }
+      next_marker = marker_t{mmap[offset + right], mmap[offset + right + 1]};
+      std::cerr << std::hex << (int)next_marker[0] << ' ' << (int)next_marker[1] << std::dec << '\n';
+      break;
+    }
+
+    for (int i = left; i < right; i++) {
+      std::cerr << std::hex << std::setfill('0') << std::setw(2) << (int)mmap[offset + i];
+      if (mmap[offset + i] == 0xff) {
+        i++;
+      }
+    }
+    std::cerr << '\n';
+
+    finish = true;
+    for (int i = 0; i < 8; i++) {
+      if (next_marker == RST[i]) {
+        finish = false;
+        left = right + 2;
+        break;
+      }
+    }
+  }
+  return right;
+}
+
 int read_scan(mapped_file mmap, int offset) {
   int size = read_segment_size(mmap, offset + 2);
   int now = 2;
@@ -174,9 +215,9 @@ int read_scan(mapped_file mmap, int offset) {
   if (now != size) {
     throw std::logic_error("bad scan header size");
   }
-  return 2 + size;
+  return 2 + size + read_entropy_coded(mmap, offset + 2 + size);
 }
-
+bool parse_segment_done = false;
 int parse_segment(mapped_file mmap, int offset) {
   marker_t marker{mmap[offset], mmap[offset + 1]};
   if (marker == SOI) {
@@ -185,6 +226,7 @@ int parse_segment(mapped_file mmap, int offset) {
   }
   if (marker == EOI) {
     std::cerr << "EOI\n";
+    parse_segment_done = true;
     return 2;
   }
   if (marker == COM) {
@@ -202,6 +244,11 @@ int parse_segment(mapped_file mmap, int offset) {
       int size = read_segment_size(mmap, offset + 2);
       return size + 2;
     }
+  }
+  if (marker == DRI) {
+    std::cerr << "DRI\n";
+    int size = read_segment_size(mmap, offset + 2);
+    return size + 2;
   }
   if (marker == DHT) {
     std::cerr << "DHT\n";
@@ -231,8 +278,9 @@ int main(int argc, char** argv) {
   while (now < mmap.size) {
     now += parse_segment(mmap, now);
     std::cerr << now << '\n';
+    if (parse_segment_done) {
+      return 0;
+    }
   }
-
-  // std::cout << "hello world\n" << argv[1] << '\n';
-  return 0;
+  return 1;
 }

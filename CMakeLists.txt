@@ -4,6 +4,7 @@ project(jpeg_codec CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+add_compile_options(-O3)
 
 add_library(lib OBJECT src/mmap.cpp)
 target_include_directories(lib PRIVATE include)
