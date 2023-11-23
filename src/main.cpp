@@ -11,6 +11,7 @@
 #include "marker.h"
 #include "mmap.h"
 #include "quantize.h"
+#include "util.h"
 
 quant_table qtabs[4];
 huffman_lut* htabs[2][4];
@@ -122,21 +123,25 @@ frame_info_t frame;
 
 int read_frame(mapped_file mmap, int offset) {
   int size = read_segment_size(mmap, offset + 2);
-  frame.precision = mmap[offset + 4];
-  frame.height = read_u16(mmap, offset + 5);
-  frame.width = read_u16(mmap, offset + 7);
-  frame.n_components = mmap[offset + 9];
+  int P = mmap[offset + 4];
+  int Y = read_u16(mmap, offset + 5);
+  int X = read_u16(mmap, offset + 7);
+  int Nf = mmap[offset + 9];
+  frame.precision = P;
+  frame.height = Y;
+  frame.width = X;
+  frame.n_components = Nf;
   // std::cerr << "P: " << P << '\n';
   // std::cerr << "Y: " << Y << '\n';
   // std::cerr << "X: " << X << '\n';
   // std::cerr << "Nf: " << Nf << '\n';
-  if (frame.n_components <= 0 || frame.n_components > 4) {
+  if (Nf <= 0 || Nf > 4) {
     throw std::logic_error("bad component count");
   }
   int now = 8;
-  for (int i = 0; i < frame.n_components; i++) {
-    int id = mmap[offset + 2 + now];
-    if (id > 4) {
+  for (int i = 0; i < Nf; i++) {
+    int Ci = mmap[offset + 2 + now];
+    if (Ci > 4) {
       throw std::runtime_error("large id not supported");
     }
     now++;
@@ -145,8 +150,8 @@ int read_frame(mapped_file mmap, int offset) {
     now++;
     int Hi = tmp / 16;
     int Vi = tmp % 16;
-    frame.components[id].h = Hi;
-    frame.components[id].v = Vi;
+    frame.components[Ci].h = Hi;
+    frame.components[Ci].v = Vi;
     // std::cerr << "H" << i << ", V" << i << ": " << Hi << ", " << Vi << '\n';
     if (Hi < 1 || Hi > 4) {
       throw std::logic_error("bad Hi");
@@ -154,7 +159,8 @@ int read_frame(mapped_file mmap, int offset) {
     if (Vi < 1 || Vi > 4) {
       throw std::logic_error("bad Vi");
     }
-    frame.components[id].q = mmap[offset + 2 + now];
+    int Tqi = mmap[offset + 2 + now];
+    frame.components[Ci].q = Tqi;
     now++;
     // std::cerr << "Tq" << i << ": " << Tqi << '\n';
   }
@@ -173,28 +179,64 @@ struct scan_info_t {
 
 scan_info_t scan;
 
+int decode_coef(int len, int bits) {
+  if (len == 0) {
+    return 0;
+  }
+  if (bits & (1 << (len - 1))) {
+    return bits;
+  }
+  int low = bits & low_k_mask(len - 1);
+  return 1 - (1 << len) + low;
+}
+
+void decode_block(unstuffing_bitstream& bs, int comp_ord_in_scan) {
+  // std::cerr << "component " << comp_ord_in_scan << '\n';
+
+  // std::cerr << "DC:\n";
+  {
+    const huffman_lut& lut = *htabs[0][scan.tds[comp_ord_in_scan]];
+    int cate = lut.lookup(bs);
+    int diff = decode_coef(cate, bs.get_k(cate));
+    // std::cerr << "  " << diff << '\n';
+  }
+
+  // std::cerr << "AC:\n";
+  {
+    const huffman_lut& lut = *htabs[1][scan.tas[comp_ord_in_scan]];
+    // std::cerr << " lut @ " << (void*)&lut << '\n';
+    for (int j = 1; j < 64; j++) {
+      int tmp = lut.lookup(bs);
+      if (tmp == 0x00) {
+        // std::cerr << "(EOB)\n";
+        break;
+      }
+      int run = tmp / 16;
+      j += run;
+      int cate = tmp % 16;
+      int diff = decode_coef(cate, bs.get_k(cate));
+
+      // std::cerr << "  " << j << "  " << diff << '\n';
+    }
+  }
+}
+
 void decode_scan_segment(mapped_file mmap, int left, int right) {
-  const huffman_lut& lut = *htabs[0][scan.tas[0]];
   unstuffing_bitstream bs;
   bs.set_mmap(mmap, left, right);
   int now = left;
+  int cnt = 0;
   while (true) {
-    int byte = bs.peak_k(8);
-    std::cerr << std::hex << byte << std::dec << '\n';
-    if (std::holds_alternative<huffman_codeword>(lut.table[byte])) {
-      huffman_codeword codeword = std::get<huffman_codeword>(lut.table[byte]);
-      std::cerr << "l1 codeword: " << codeword.len << ' ' << std::hex << codeword.val << '\n';
-      bs.get_k(codeword.len);
-    }
-    else {
-      bs.get_k(8);
-      int byte = bs.peak_k(8);
-      const huffman_lut& lut_l2 = *(std::get<huffman_supernode>(lut.table[byte]).next);
-      huffman_codeword codeword = std::get<huffman_codeword>(lut_l2.table[byte]);
-      std::cerr << "l2 codeword: " << codeword.len << ' ' << std::hex << codeword.val << '\n';
-      bs.get_k(codeword.len - 8);
-    }
-    break;
+    // std::cerr << "MCU " << cnt << '\n';
+    decode_block(bs, 0);
+    decode_block(bs, 0);
+    decode_block(bs, 1);
+    decode_block(bs, 2);
+
+    cnt++;
+    // if (cnt > 10) {
+    //   break;
+    // }
   }
 }
 
@@ -215,17 +257,20 @@ int read_scan_segments(mapped_file mmap, int offset) {
         continue;
       }
       next_marker = marker_t{mmap[offset + right], mmap[offset + right + 1]};
-      std::cerr << std::hex << (int)next_marker[0] << ' ' << (int)next_marker[1] << std::dec << '\n';
+      // print_byte(std::cerr, next_marker[0]);
+      // std::cerr << ' ';
+      // print_byte(std::cerr, next_marker[1]);
+      // std::cerr << '\n';
       break;
     }
 
-    for (int i = left; i < std::min(left + 10, right); i++) {
-      std::cerr << std::hex << std::setfill('0') << std::setw(2) << (int)mmap[offset + i];
-      if (mmap[offset + i] == 0xff) {
-        i++;
-      }
-    }
-    std::cerr << '\n';
+    // for (int i = left; i < std::min(left + 10, right); i++) {
+    //   print_byte(std::cerr, mmap[offset + i]);
+    //   if (mmap[offset + i] == 0xff) {
+    //     i++;
+    //   }
+    // }
+    // std::cerr << '\n';
 
     decode_scan_segment(mmap, offset + left, offset + right);
 
@@ -247,11 +292,11 @@ int read_scan(mapped_file mmap, int offset) {
   int Ns = mmap[offset + 2 + now];
   now++;
   scan.n_components = Ns;
-  std::cerr << "Ns: " << Ns << '\n';
+  // std::cerr << "Ns: " << Ns << '\n';
   for (int j = 0; j < Ns; j++) {
     int Csj = mmap[offset + 2 + now];
     now++;
-    std::cerr << "Cs" << j << ": " << Csj << '\n';
+    // std::cerr << "Cs" << j << ": " << Csj << '\n';
     scan.ids[j] = Csj;
     int tmp = mmap[offset + 2 + now];
     now++;
@@ -259,7 +304,7 @@ int read_scan(mapped_file mmap, int offset) {
     scan.tds[j] = Tdj;
     int Taj = tmp % 16;
     scan.tas[j] = Taj;
-    std::cerr << "Td" << j << ", Ta" << j << ": " << Tdj << ", " << Taj << '\n';
+    // std::cerr << "Td" << j << ", Ta" << j << ": " << Tdj << ", " << Taj << '\n';
     if (Tdj < 0 || Tdj > 3) {
       throw std::logic_error("bad Tdj");
     }
@@ -271,13 +316,13 @@ int read_scan(mapped_file mmap, int offset) {
   now++;
   int Se = mmap[offset + 2 + now];
   now++;
-  std::cerr << "Ss: " << Ss << '\n';
-  std::cerr << "Se: " << Se << '\n';
+  // std::cerr << "Ss: " << Ss << '\n';
+  // std::cerr << "Se: " << Se << '\n';
   int tmp = mmap[offset + 2 + now];
   now++;
   int Ah = tmp / 16;
   int Al = tmp % 16;
-  std::cerr << "Ah, Al: " << Ah << ", " << Al << '\n';
+  // std::cerr << "Ah, Al: " << Ah << ", " << Al << '\n';
   if (now != size) {
     throw std::logic_error("bad scan header size");
   }
@@ -329,7 +374,10 @@ int parse_segment(mapped_file mmap, int offset) {
     std::cerr << "SOS\n";
     return read_scan(mmap, offset);
   }
-  std::cerr << std::hex << (int)marker[0] << ' ' << (int)marker[1] << std::dec << '\n';
+  print_byte(std::cerr, marker[0]);
+  std::cerr << ' ';
+  print_byte(std::cerr, marker[1]);
+  std::cerr << '\n';
   throw std::logic_error("unknown marker");
 }
 

@@ -4,11 +4,7 @@
 #include <cstdint>
 
 #include "mmap.h"
-
-uint64_t low_k_mask(int k) {
-  uint64_t pow = ((uint64_t)1) << k;
-  return pow - 1;
-}
+#include "util.h"
 
 struct unstuffing_bitstream {
   mapped_file mmap;
@@ -29,13 +25,18 @@ struct unstuffing_bitstream {
     return next_idx < end;
   }
   void more() {
-    std::cerr << bitcnt << ' ' << std::hex << bitbuf << std::dec << " -> ";
+    // print_binary(std::cerr, bitbuf, bitcnt);
+    // std::cerr << " -> ";
+
     if (!has_more()) {
       return;
     }
     bitbuf = (bitbuf << 8) | mmap[next_idx];
     bitcnt += 8;
-    std::cerr << bitcnt << ' ' << std::hex << bitbuf << std::dec << '\n';
+
+    // print_binary(std::cerr, bitbuf, bitcnt);
+    // std::cerr << '\n';
+
     if (mmap[next_idx] == 0xff) {
       next_idx += 2;
     }
@@ -44,6 +45,9 @@ struct unstuffing_bitstream {
     }
   }
   uint64_t peak_k(int k) {
+    if (k == 0) {
+      return 0;
+    }
     while (bitcnt < k) {
       if (!has_more()) {
         return (bitbuf << (k - bitcnt)) & low_k_mask(k);
@@ -53,6 +57,9 @@ struct unstuffing_bitstream {
     return (bitbuf >> (bitcnt - k)) & low_k_mask(k);
   }
   uint64_t get_k(int k) {
+    if (k == 0) {
+      return 0;
+    }
     while (bitcnt < k) {
       if (!has_more()) {
         throw std::runtime_error("no more bits");
