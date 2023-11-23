@@ -6,10 +6,14 @@
 #include <stdexcept>
 #include <string>
 
+#include "entropy_coded.h"
 #include "huffman.h"
 #include "marker.h"
 #include "mmap.h"
 #include "quantize.h"
+
+quant_table qtabs[4];
+huffman_lut* htabs[2][4];
 
 int read_u16(mapped_file mmap, int offset) {
   return (((int)mmap[offset]) << 8) | mmap[offset + 1];
@@ -23,7 +27,6 @@ int read_segment_size(mapped_file mmap, int offset) {
   return size;
 }
 
-quant_table qtabs[4];
 int read_quantization_table(mapped_file mmap, int offset) {
   int size = read_segment_size(mmap, offset + 2);
   int now = 2;
@@ -60,7 +63,6 @@ int read_quantization_table(mapped_file mmap, int offset) {
   return 2 + size;
 }
 
-huffman_lut* htabs[2][4];
 int read_huffman_table(mapped_file mmap, int offset) {
   int size = read_segment_size(mmap, offset + 2);
   int now = 2;
@@ -102,25 +104,49 @@ int read_huffman_table(mapped_file mmap, int offset) {
   return 2 + size;
 }
 
+struct component_info_t {
+  int h;
+  int v;
+  int q;
+};
+
+struct frame_info_t {
+  int precision;
+  int height;
+  int width;
+  int n_components;
+  std::array<component_info_t, 4> components;
+};
+
+frame_info_t frame;
+
 int read_frame(mapped_file mmap, int offset) {
   int size = read_segment_size(mmap, offset + 2);
-  int P = mmap[offset + 4];
-  int Y = read_u16(mmap, offset + 5);
-  int X = read_u16(mmap, offset + 7);
-  int Nf = mmap[offset + 9];
+  frame.precision = mmap[offset + 4];
+  frame.height = read_u16(mmap, offset + 5);
+  frame.width = read_u16(mmap, offset + 7);
+  frame.n_components = mmap[offset + 9];
   // std::cerr << "P: " << P << '\n';
   // std::cerr << "Y: " << Y << '\n';
   // std::cerr << "X: " << X << '\n';
   // std::cerr << "Nf: " << Nf << '\n';
+  if (frame.n_components <= 0 || frame.n_components > 4) {
+    throw std::logic_error("bad component count");
+  }
   int now = 8;
-  for (int i = 0; i < Nf; i++) {
-    int Ci = mmap[offset + 2 + now];
+  for (int i = 0; i < frame.n_components; i++) {
+    int id = mmap[offset + 2 + now];
+    if (id > 4) {
+      throw std::runtime_error("large id not supported");
+    }
     now++;
     // std::cerr << "C" << i << ": " << Ci << '\n';
     int tmp = mmap[offset + 2 + now];
     now++;
     int Hi = tmp / 16;
     int Vi = tmp % 16;
+    frame.components[id].h = Hi;
+    frame.components[id].v = Vi;
     // std::cerr << "H" << i << ", V" << i << ": " << Hi << ", " << Vi << '\n';
     if (Hi < 1 || Hi > 4) {
       throw std::logic_error("bad Hi");
@@ -128,7 +154,7 @@ int read_frame(mapped_file mmap, int offset) {
     if (Vi < 1 || Vi > 4) {
       throw std::logic_error("bad Vi");
     }
-    int Tqi = mmap[offset + 2 + now];
+    frame.components[id].q = mmap[offset + 2 + now];
     now++;
     // std::cerr << "Tq" << i << ": " << Tqi << '\n';
   }
@@ -138,7 +164,41 @@ int read_frame(mapped_file mmap, int offset) {
   return 2 + size;
 }
 
-int read_entropy_coded(mapped_file mmap, int offset) {
+struct scan_info_t {
+  int n_components;
+  std::array<int, 4> ids;
+  std::array<int, 4> tds;
+  std::array<int, 4> tas;
+};
+
+scan_info_t scan;
+
+void decode_scan_segment(mapped_file mmap, int left, int right) {
+  const huffman_lut& lut = *htabs[0][scan.tas[0]];
+  unstuffing_bitstream bs;
+  bs.set_mmap(mmap, left, right);
+  int now = left;
+  while (true) {
+    int byte = bs.peak_k(8);
+    std::cerr << std::hex << byte << std::dec << '\n';
+    if (std::holds_alternative<huffman_codeword>(lut.table[byte])) {
+      huffman_codeword codeword = std::get<huffman_codeword>(lut.table[byte]);
+      std::cerr << "l1 codeword: " << codeword.len << ' ' << std::hex << codeword.val << '\n';
+      bs.get_k(codeword.len);
+    }
+    else {
+      bs.get_k(8);
+      int byte = bs.peak_k(8);
+      const huffman_lut& lut_l2 = *(std::get<huffman_supernode>(lut.table[byte]).next);
+      huffman_codeword codeword = std::get<huffman_codeword>(lut_l2.table[byte]);
+      std::cerr << "l2 codeword: " << codeword.len << ' ' << std::hex << codeword.val << '\n';
+      bs.get_k(codeword.len - 8);
+    }
+    break;
+  }
+}
+
+int read_scan_segments(mapped_file mmap, int offset) {
   marker_t next_marker;
   int left = 0;
   int right = 0;
@@ -159,13 +219,15 @@ int read_entropy_coded(mapped_file mmap, int offset) {
       break;
     }
 
-    for (int i = left; i < right; i++) {
+    for (int i = left; i < std::min(left + 10, right); i++) {
       std::cerr << std::hex << std::setfill('0') << std::setw(2) << (int)mmap[offset + i];
       if (mmap[offset + i] == 0xff) {
         i++;
       }
     }
     std::cerr << '\n';
+
+    decode_scan_segment(mmap, offset + left, offset + right);
 
     finish = true;
     for (int i = 0; i < 8; i++) {
@@ -184,15 +246,19 @@ int read_scan(mapped_file mmap, int offset) {
   int now = 2;
   int Ns = mmap[offset + 2 + now];
   now++;
+  scan.n_components = Ns;
   std::cerr << "Ns: " << Ns << '\n';
   for (int j = 0; j < Ns; j++) {
     int Csj = mmap[offset + 2 + now];
     now++;
     std::cerr << "Cs" << j << ": " << Csj << '\n';
+    scan.ids[j] = Csj;
     int tmp = mmap[offset + 2 + now];
     now++;
     int Tdj = tmp / 16;
+    scan.tds[j] = Tdj;
     int Taj = tmp % 16;
+    scan.tas[j] = Taj;
     std::cerr << "Td" << j << ", Ta" << j << ": " << Tdj << ", " << Taj << '\n';
     if (Tdj < 0 || Tdj > 3) {
       throw std::logic_error("bad Tdj");
@@ -215,8 +281,9 @@ int read_scan(mapped_file mmap, int offset) {
   if (now != size) {
     throw std::logic_error("bad scan header size");
   }
-  return 2 + size + read_entropy_coded(mmap, offset + 2 + size);
+  return 2 + size + read_scan_segments(mmap, offset + 2 + size);
 }
+
 bool parse_segment_done = false;
 int parse_segment(mapped_file mmap, int offset) {
   marker_t marker{mmap[offset], mmap[offset + 1]};
