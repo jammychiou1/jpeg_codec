@@ -116,6 +116,8 @@ struct frame_info_t {
   int height;
   int width;
   int n_components;
+  int hmax;
+  int vmax;
   std::array<component_info_t, 4> components;
 };
 
@@ -132,31 +134,35 @@ int read_frame(mapped_file mmap, int offset) {
   frame.width = X;
   frame.n_components = Nf;
   // std::cerr << "P: " << P << '\n';
-  // std::cerr << "Y: " << Y << '\n';
-  // std::cerr << "X: " << X << '\n';
+  std::cerr << "Y: " << Y << '\n';
+  std::cerr << "X: " << X << '\n';
   // std::cerr << "Nf: " << Nf << '\n';
   if (Nf <= 0 || Nf > 4) {
     throw std::logic_error("bad component count");
   }
   int now = 8;
+  int Hmax = 0;
+  int Vmax = 0;
   for (int i = 0; i < Nf; i++) {
     int Ci = mmap[offset + 2 + now];
     if (Ci > 4) {
       throw std::runtime_error("large id not supported");
     }
     now++;
-    // std::cerr << "C" << i << ": " << Ci << '\n';
+    std::cerr << "C" << i << ": " << Ci << '\n';
     int tmp = mmap[offset + 2 + now];
     now++;
     int Hi = tmp / 16;
     int Vi = tmp % 16;
     frame.components[Ci].h = Hi;
     frame.components[Ci].v = Vi;
-    // std::cerr << "H" << i << ", V" << i << ": " << Hi << ", " << Vi << '\n';
-    if (Hi < 1 || Hi > 4) {
+    Hmax = std::max(Hmax, Hi);
+    Vmax = std::max(Vmax, Vi);
+    std::cerr << "H" << i << ", V" << i << ": " << Hi << ", " << Vi << '\n';
+    if (Hi != 1 && Hi != 2 && Hi != 4) {
       throw std::logic_error("bad Hi");
     }
-    if (Vi < 1 || Vi > 4) {
+    if (Vi != 1 && Vi != 2 && Vi != 4) {
       throw std::logic_error("bad Vi");
     }
     int Tqi = mmap[offset + 2 + now];
@@ -164,6 +170,8 @@ int read_frame(mapped_file mmap, int offset) {
     now++;
     // std::cerr << "Tq" << i << ": " << Tqi << '\n';
   }
+  frame.hmax = Hmax;
+  frame.vmax = Vmax;
   if (now != size) {
     throw std::logic_error("bad frame header size");
   }
@@ -190,23 +198,19 @@ int decode_coef(int len, int bits) {
   return 1 - (1 << len) + low;
 }
 
-void decode_block(unstuffing_bitstream& bs, int comp_ord_in_scan) {
-  // std::cerr << "component " << comp_ord_in_scan << '\n';
-
+void decode_block(unstuffing_bitstream& bs, const huffman_lut& lut_dc, const huffman_lut& lut_ac) {
   // std::cerr << "DC:\n";
   {
-    const huffman_lut& lut = *htabs[0][scan.tds[comp_ord_in_scan]];
-    int cate = lut.lookup(bs);
+    int cate = lut_dc.lookup(bs);
     int diff = decode_coef(cate, bs.get_k(cate));
     // std::cerr << "  " << diff << '\n';
   }
 
   // std::cerr << "AC:\n";
   {
-    const huffman_lut& lut = *htabs[1][scan.tas[comp_ord_in_scan]];
     // std::cerr << " lut @ " << (void*)&lut << '\n';
     for (int j = 1; j < 64; j++) {
-      int tmp = lut.lookup(bs);
+      int tmp = lut_ac.lookup(bs);
       if (tmp == 0x00) {
         // std::cerr << "(EOB)\n";
         break;
@@ -222,21 +226,47 @@ void decode_block(unstuffing_bitstream& bs, int comp_ord_in_scan) {
 }
 
 void decode_scan_segment(mapped_file mmap, int left, int right) {
+  int num_mcu = 0;
+  int du_per_mcu = 0;
+  if (scan.n_components == 1) {
+    int cols = (frame.width - 1) / 8 + 1;
+    int rows = (frame.height - 1) / 8 + 1;
+    num_mcu = cols * rows;
+    du_per_mcu = 1;
+  }
+  else {
+    int cols = (frame.width - 1) / (frame.hmax * 8) + 1;
+    int rows = (frame.height - 1) / (frame.vmax * 8) + 1;
+    num_mcu = cols * rows;
+    for (int j = 0; j < scan.n_components; j++) {
+      component_info_t component = frame.components[scan.ids[j]];
+      du_per_mcu += component.h * component.v;
+    }
+  }
+  std::cerr << "expecting " << num_mcu << " MCUs, " << du_per_mcu << " DUs per MCU\n";
+
   unstuffing_bitstream bs;
   bs.set_mmap(mmap, left, right);
   int now = left;
-  int cnt = 0;
-  while (true) {
-    // std::cerr << "MCU " << cnt << '\n';
-    decode_block(bs, 0);
-    decode_block(bs, 0);
-    decode_block(bs, 1);
-    decode_block(bs, 2);
+  for (int t = 0; t < num_mcu; t++) {
+    std::cerr << "MCU " << t << '\n';
+    if (scan.n_components == 1) {
+      decode_block(bs, *htabs[0][scan.tds[0]], *htabs[1][scan.tas[0]]);
+    }
+    else {
+      for (int j = 0; j < scan.n_components; j++) {
+        std::cerr << "component id: " << scan.ids[j] << '\n';
 
-    cnt++;
-    // if (cnt > 10) {
-    //   break;
-    // }
+        component_info_t component = frame.components[scan.ids[j]];
+        for (int y = 0; y < component.v; y++) {
+          for (int x = 0; x < component.h; x++) {
+            std::cerr << "DU " << x << ' ' << y << '\n';
+
+            decode_block(bs, *htabs[0][scan.tds[j]], *htabs[1][scan.tas[j]]);
+          }
+        }
+      }
+    }
   }
 }
 

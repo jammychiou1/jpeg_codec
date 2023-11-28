@@ -13,6 +13,14 @@ add_executable(main src/main.cpp)
 target_link_libraries(main lib)
 target_include_directories(main PRIVATE include)
 
+add_executable(test_mmap test/mmap.cpp)
+target_link_libraries(test_mmap lib)
+target_include_directories(test_mmap PRIVATE include)
+
+add_executable(test_sse test/sse.cpp)
+target_link_libraries(test_sse lib)
+target_include_directories(test_sse PRIVATE include)
+
 # target_include_directories(neon PUBLIC ../include)
 # add_executable("${X}" "${X}.cpp")
 # target_link_libraries("${X}" neon)
