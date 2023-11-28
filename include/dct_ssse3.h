@@ -1,5 +1,5 @@
-#ifndef DCT_SIMD_H
-#define DCT_SIMD_H
+#ifndef DCT_SSSE3_H
+#define DCT_SSSE3_H
 
 #include <array>
 #include <cmath>
@@ -29,7 +29,7 @@ void mul_cmpl_kara(int16x8_t a_r, int16x8_t a_i, int16_t b_r, int16_t b_i, int16
   o_i = _mm_sub_epi16(_mm_slli_epi16(t3, 1), _mm_add_epi16(t1, t2));
 }
 
-void dct_simd(
+void dct_ssse3(
     int16x8_t s0, int16x8_t s1, int16x8_t s2, int16x8_t s3,
     int16x8_t s4, int16x8_t s5, int16x8_t s6, int16x8_t s7,
     int16x8_t& x0, int16x8_t& x1, int16x8_t& x2, int16x8_t& x3,
@@ -72,5 +72,5 @@ void dct_simd(
   x2 = _mm_add_epi16(c6, b5_i);
 }
 
-#endif // DCT_SIMD_H
+#endif // DCT_SSSE3_H
 

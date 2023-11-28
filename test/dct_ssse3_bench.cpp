@@ -1,8 +1,7 @@
 #include <cstdint>
+#include <tmmintrin.h>
 
-#include "dct_simd.h"
-
-void dct_schoolbook(int16_t data[8]);
+#include "dct_ssse3.h"
 
 int16_t data[8][8];
 int main() {
@@ -16,7 +15,7 @@ int main() {
     int16x8_t s6 = _mm_load_si128((int16x8_t*) &data[6]);
     int16x8_t s7 = _mm_load_si128((int16x8_t*) &data[7]);
 
-    dct_simd(s0, s1, s2, s3, s4, s5, s6, s7,
+    dct_ssse3(s0, s1, s2, s3, s4, s5, s6, s7,
         s0, s1, s2, s3, s4, s5, s6, s7);
 
     _mm_store_si128((int16x8_t*) &data[0], s0);
