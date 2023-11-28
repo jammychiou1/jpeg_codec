@@ -45,8 +45,8 @@ with open(sys.argv[1], 'rb') as f:
 print(len(data))
 for segment in parse(data):
     if segment[0] == b'\xff\xc4':
-        print(segment[0].hex())
-        print(len(segment[1]))
+        # print(segment[0].hex())
+        # print(len(segment[1]))
         # print(segment[1].hex())
 
         Lh = int.from_bytes(segment[1][:2], 'big')
@@ -72,22 +72,22 @@ for segment in parse(data):
             payload = payload[now:]
 
     if segment[0] == b'\xff\xdb':
-        print(segment[0].hex())
-        print(len(segment[1]))
+        # print(segment[0].hex())
+        # print(len(segment[1]))
         # print(segment[1].hex())
 
         Lq = int.from_bytes(segment[1][:2], 'big')
-        print(f'Lq: {Lq}')
+        # print(f'Lq: {Lq}')
 
         payload = segment[1][2:]
         while len(payload) > 0:
             Pq = payload[0] // 16
             Tq = payload[0] % 16
-            print(f'Pq: {Pq}')
-            print(f'Tq: {Tq}')
+            # print(f'Pq: {Pq}')
+            # print(f'Tq: {Tq}')
             sz = Pq + 1
             Qk_s = [0 for k in range(64)]
             for k in range(64):
                 Qk_s[k] = int.from_bytes(payload[1 + k * sz : 1 + (k + 1) * sz], 'big')
-                print(f'Q{k}: {Qk_s[k]}')
+                # print(f'Q{k}: {Qk_s[k]}')
             payload = payload[1 + 64 * sz:]
