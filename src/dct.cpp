@@ -4,15 +4,6 @@
 #include <cstdint>
 #include <cmath>
 
-const double pi = std::acos(-1);
-const std::array<int16_t, 8> c32s = [] {
-  std::array<int16_t, 8> res{};
-  for (int i = 1; i < 8; i++) {
-    res[i] = std::round(std::cos(2 * pi * i / 32) * (1 << 15));
-  }
-  return res;
-} ();
-
 int16_t mul_rshr(int16_t a, int16_t b, int sh) {
   return (int32_t(a) * b + (1 << (sh - 1))) >> sh;
 }
@@ -56,27 +47,4 @@ void dct(int16_t data[8]) {
   data[6] = b4 - b5_r + b6;
   data[3] = b0 + b1_i - b2;
   data[2] = b4 + b5_i - b6;
-}
-
-const std::array<int16_t, 32> c32s_full = [] {
-  std::array<int16_t, 32> res{};
-  for (int i = 1; i < 32; i++) {
-    res[i] = std::round(std::cos(2 * pi * i / 32) * (1 << 15));
-  }
-  return res;
-} ();
-
-void dct_schoolbook(int16_t data[8]) {
-  int16_t tmp[8] = {};
-  for (int i = 0; i < 8; i++) {
-    tmp[i] += mul_rshr(data[0], c32s_full[4], 15);
-  }
-  for (int t = 1; t < 8; t++) {
-    for (int i = 0; i < 8; i++) {
-      tmp[i] += mul_rshr(data[t], c32s_full[(2 * i + 1) * t % 32], 15);
-    }
-  }
-  for (int i = 0; i < 8; i++) {
-    data[i] = tmp[i];
-  }
 }
