@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <cmath>
 
-const static double pi = std::acos(-1);
+const double pi = std::acos(-1);
 const std::array<int16_t, 8> c32s = [] {
   std::array<int16_t, 8> res{};
   for (int i = 1; i < 8; i++) {

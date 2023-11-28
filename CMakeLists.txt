@@ -22,6 +22,10 @@ add_executable(test_sse2 test/sse2.cpp)
 target_link_libraries(test_sse2 lib)
 target_include_directories(test_sse2 PRIVATE include)
 
+add_executable(test_idct_1d_schoolbook test/idct_1d_schoolbook.cpp)
+target_link_libraries(test_idct_1d_schoolbook lib)
+target_include_directories(test_idct_1d_schoolbook PRIVATE include)
+
 add_executable(test_idct_1d_fft test/idct_1d_fft.cpp)
 target_link_libraries(test_idct_1d_fft lib)
 target_include_directories(test_idct_1d_fft PRIVATE include)
