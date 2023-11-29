@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 add_compile_options(-O3)
 add_compile_options(-mssse3)
 
-add_library(lib OBJECT src/mmap.cpp)
+add_library(lib OBJECT src/mmap.cpp src/bmp_writer.cpp)
 target_include_directories(lib PRIVATE include)
 
 add_executable(main src/main.cpp)
@@ -17,6 +17,10 @@ target_include_directories(main PRIVATE include)
 add_executable(test_mmap test/mmap.cpp)
 target_link_libraries(test_mmap lib)
 target_include_directories(test_mmap PRIVATE include)
+
+add_executable(test_bmp_writer test/bmp_writer.cpp)
+target_link_libraries(test_bmp_writer lib)
+target_include_directories(test_bmp_writer PRIVATE include)
 
 add_executable(test_sse2 test/sse2.cpp)
 target_link_libraries(test_sse2 lib)

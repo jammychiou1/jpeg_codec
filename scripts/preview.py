@@ -9,9 +9,19 @@ Y = 480
 X = 640
 img = np.zeros((Y, X))
 now = 0
-for i, y in enumerate(range(0, Y, 8)):
-    for j, x in enumerate(range(0, X, 8)):
+# for i, y in enumerate(range(0, Y, 8)):
+#     for j, x in enumerate(range(0, X, 8)):
+#         img[y : y + 8, x : x + 8] = data[now : now + 8]
+#         now += 8
+for i, y in enumerate(range(0, Y, 16)):
+    for j, x in enumerate(range(0, X, 16)):
         img[y : y + 8, x : x + 8] = data[now : now + 8]
+        now += 8
+        img[y : y + 8, x + 8 : x + 16] = data[now : now + 8]
+        now += 8
+        img[y + 8: y + 16, x : x + 8] = data[now : now + 8]
+        now += 8
+        img[y + 8: y + 16, x + 8 : x + 16] = data[now : now + 8]
         now += 8
 print(img)
 plt.imshow(img, cmap='gray')
