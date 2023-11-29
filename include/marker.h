@@ -1,6 +1,10 @@
 #ifndef MARKER_H
 #define MARKER_H
 
+#include <array>
+#include <cstdint>
+#include <set>
+
 typedef std::array<uint8_t, 2> marker_t;
 
 const marker_t SOI = marker_t{0xff, 0xd8};
@@ -27,5 +31,19 @@ const std::array<marker_t, 8> RST = [] {
   }
   return result;
 } ();
+
+const std::set<marker_t> variable_size_mrksegs = [] {
+  std::set<marker_t> res = {COM, DRI, DHT, DQT, SOF0, SOS};
+  for (int i = 0; i < 16; i++) {
+    res.insert(APP[i]);
+  }
+  return res;
+} ();
+
+struct marker_segment_t {
+  marker_t marker;
+  int offset;
+  int size;
+};
 
 #endif // MARKER_H
