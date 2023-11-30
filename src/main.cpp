@@ -159,58 +159,6 @@
 //   }
 // }
 
-// bool parse_segment_done = false;
-// int parse_segment(mapped_file mmap, int offset) {
-//   marker_t marker{mmap[offset], mmap[offset + 1]};
-//   if (marker == SOI) {
-//     // std::cerr << "SOI\n";
-//     return 2;
-//   }
-//   if (marker == EOI) {
-//     // std::cerr << "EOI\n";
-//     parse_segment_done = true;
-//     return 2;
-//   }
-//   if (marker == COM) {
-//     // std::cerr << "COM\n";
-//     int size = read_segment_size(mmap, offset + 2);
-//     return size + 2;
-//   }
-//   if (marker == SOF0) {
-//     // std::cerr << "SOF0\n";
-//     return read_frame(mmap, offset);
-//   }
-//   for (int i = 0; i < 16; i++) {
-//     if (marker == APP[i]) {
-//       // std::cerr << "APP" << i << '\n';
-//       int size = read_segment_size(mmap, offset + 2);
-//       return size + 2;
-//     }
-//   }
-//   if (marker == DRI) {
-//     // std::cerr << "DRI\n";
-//     int size = read_segment_size(mmap, offset + 2);
-//     return size + 2;
-//   }
-//   if (marker == DHT) {
-//     // std::cerr << "DHT\n";
-//     return read_huffman_table(mmap, offset);
-//   }
-//   if (marker == DQT) {
-//     // std::cerr << "DQT\n";
-//     return read_quantization_table(mmap, offset);
-//   }
-//   if (marker == SOS) {
-//     // std::cerr << "SOS\n";
-//     return read_scan(mmap, offset);
-//   }
-//   print_byte(std::cerr, marker[0]);
-//   std::cerr << ' ';
-//   print_byte(std::cerr, marker[1]);
-//   std::cerr << '\n';
-//   throw std::logic_error("unknown marker");
-// }
-
 int main(int argc, char** argv) {
   if (argc < 2) {
     return 1;
