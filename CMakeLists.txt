@@ -7,7 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 add_compile_options(-O3)
 add_compile_options(-mssse3)
 
-add_library(lib OBJECT src/mmap.cpp src/bmp_writer.cpp src/decoder.cpp src/parser/main.cpp src/parser/frame.cpp src/parser/scan.cpp)
+# add_library(lib OBJECT src/mmap.cpp src/bmp_writer.cpp src/decoder.cpp src/parser/main.cpp src/parser/frame.cpp src/parser/scan.cpp)
+add_library(lib OBJECT src/mmap.cpp src/bmp_writer.cpp src/decoder.cpp src/parser.cpp)
 target_include_directories(lib PRIVATE include)
 
 add_executable(main src/main.cpp)

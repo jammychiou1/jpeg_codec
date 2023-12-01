@@ -2,8 +2,8 @@
 #define QUANTIZE_H
 
 struct quant_table {
-  int precision;
-  std::array<int, 64> table;
+  int p;
+  int arr[64];
 };
 
 #endif // QUANTIZE_H

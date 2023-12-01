@@ -1,4 +1,7 @@
 #include <string>
+
+#include "decoder.h"
+#include "mmap.h"
 #include "parser.h"
 
 // int decode_coef(int len, int bits) {
@@ -159,10 +162,16 @@
 //   }
 // }
 
+parser_state_t parser;
+decoder_state_t decoder;
 int main(int argc, char** argv) {
   if (argc < 2) {
     return 1;
   }
   std::string filename = argv[1];
-  load_file(filename);
+  mapped_file mmap;
+  mmap.load_file(filename);
+  parser.ptr = mmap.ptr;
+  parser.size = mmap.size;
+  parse_image(parser, decoder);
 }
