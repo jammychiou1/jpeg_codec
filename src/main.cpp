@@ -173,5 +173,6 @@ int main(int argc, char** argv) {
   mmap.load_file(filename);
   parser.ptr = mmap.ptr;
   parser.size = mmap.size;
-  parse_image(parser, decoder);
+  parser.dcd = &decoder;
+  parse_image(parser);
 }

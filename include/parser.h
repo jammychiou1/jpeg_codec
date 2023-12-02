@@ -19,8 +19,9 @@ struct parser_state_t {
   const uint8_t* ptr;
   int size;
   marker_segment_t mrk_seg;
+  decoder_state_t* dcd;
 };
 
-void parse_image(parser_state_t& psr, decoder_state_t& dcd);
+void parse_image(parser_state_t& psr);
 
 #endif // PARSER_H

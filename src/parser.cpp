@@ -32,7 +32,8 @@ void read_u16(const uint8_t* ptr, int& off, int& val) {
   off += 2;
 }
 
-void setup_huffman_table(parser_state_t& psr, decoder_state_t& dcd) {
+void setup_huffman_table(parser_state_t& psr) {
+  decoder_state_t* dcd = psr.dcd;
   const uint8_t* ptr = psr.ptr;
   int off = psr.mrk_seg.off + 2;
   int len = psr.mrk_seg.len;
@@ -71,14 +72,15 @@ void setup_huffman_table(parser_state_t& psr, decoder_state_t& dcd) {
       code *= 2;
     }
 
-    dcd.htabs[Tc][Th] = htab;
+    dcd->htabs[Tc][Th] = htab;
   }
   if (off != end) {
     throw std::logic_error("bad table size");
   }
 }
 
-void setup_quantization_table(parser_state_t& psr, decoder_state_t& dcd) {
+void setup_quantization_table(parser_state_t& psr) {
+  decoder_state_t* dcd = psr.dcd;
   const uint8_t* ptr = psr.ptr;
   int off = psr.mrk_seg.off + 2;
   int len = psr.mrk_seg.len;
@@ -112,7 +114,7 @@ void setup_quantization_table(parser_state_t& psr, decoder_state_t& dcd) {
     for (int k = 0; k < 64; k++) {
       qtab.arr[k] = Qk_s[k];
     }
-    dcd.qtabs[Tq] = qtab;
+    dcd->qtabs[Tq] = qtab;
   }
 
   if (off != end) {
@@ -120,7 +122,8 @@ void setup_quantization_table(parser_state_t& psr, decoder_state_t& dcd) {
   }
 }
 
-void setup_scan_param(parser_state_t& psr, decoder_state_t& dcd) {
+void setup_scan_param(parser_state_t& psr) {
+  decoder_state_t* dcd = psr.dcd;
   const uint8_t* ptr = psr.ptr;
   int off = psr.mrk_seg.off + 2;
   int len = psr.mrk_seg.len;
@@ -171,10 +174,11 @@ void setup_scan_param(parser_state_t& psr, decoder_state_t& dcd) {
     throw std::logic_error("bad scan header size");
   }
 
-  dcd.scan = scan;
+  dcd->scan = scan;
 }
 
-void setup_frame_param(parser_state_t& psr, decoder_state_t& dcd) {
+void setup_frame_param(parser_state_t& psr) {
+  decoder_state_t* dcd = psr.dcd;
   const uint8_t* ptr = psr.ptr;
   int off = psr.mrk_seg.off + 2;
   int len = psr.mrk_seg.len;
@@ -228,7 +232,7 @@ void setup_frame_param(parser_state_t& psr, decoder_state_t& dcd) {
     Hmax = max(Hmax, Hi);
     Vmax = max(Vmax, Vi);
     comp.q = Tqi;
-    dcd.comps[Ci] = comp;
+    dcd->comps[Ci] = comp;
   }
   frame.hmax = Hmax;
   frame.vmax = Vmax;
@@ -237,7 +241,7 @@ void setup_frame_param(parser_state_t& psr, decoder_state_t& dcd) {
     throw std::logic_error("bad frame header size");
   }
 
-  dcd.frame = frame;
+  dcd->frame = frame;
 }
 
 bool parse_marker_segment(parser_state_t& psr, int& off) {
@@ -306,7 +310,7 @@ bool parse_marker_segment(parser_state_t& psr, int& off) {
   return true;
 }
 
-bool parse_misc(parser_state_t& psr, decoder_state_t& dcd, int& off) {
+bool parse_misc(parser_state_t& psr, int& off) {
   int new_off = off;
   if (!parse_marker_segment(psr, new_off)) {
     return false;
@@ -322,42 +326,42 @@ bool parse_misc(parser_state_t& psr, decoder_state_t& dcd, int& off) {
 }
 
 
-bool parse_scan_tbls(parser_state_t& psr, decoder_state_t& dcd, int& off) {
+bool parse_scan_tbls(parser_state_t& psr, int& off) {
   int new_off = off;
   if (!parse_marker_segment(psr, new_off)) {
     return false;
   }
   switch (psr.mrk_seg.mrk) {
   case DHT:
-    setup_huffman_table(psr, dcd);
+    setup_huffman_table(psr);
     off = new_off;
     return true;
   case DQT:
-    setup_quantization_table(psr, dcd);
+    setup_quantization_table(psr);
     off = new_off;
     return true;
   }
   return false;
 }
 
-void parse_scan_prelude(parser_state_t& psr, decoder_state_t& dcd, int& off) {
+void parse_scan_prelude(parser_state_t& psr, int& off) {
   bool flag;
   do {
     flag = false;
-    flag |= parse_misc(psr, dcd, off);
-    flag |= parse_scan_tbls(psr, dcd, off);
+    flag |= parse_misc(psr, off);
+    flag |= parse_scan_tbls(psr, off);
   } while (flag);
 }
 
-void parse_scan_hdr(parser_state_t& psr, decoder_state_t& dcd, int& off) {
+void parse_scan_hdr(parser_state_t& psr, int& off) {
   parse_marker_segment(psr, off);
   if (psr.mrk_seg.mrk != SOS) {
     throw std::logic_error("expecting scan header");
   }
-  setup_scan_param(psr, dcd);
+  setup_scan_param(psr);
 }
 
-void parse_scan_body(parser_state_t& psr, decoder_state_t& dcd, int& off) {
+void parse_scan_body(parser_state_t& psr, int& off) {
   const uint8_t* ptr = psr.ptr;
   int l = off, r;
   bool done = false;
@@ -375,7 +379,7 @@ void parse_scan_body(parser_state_t& psr, decoder_state_t& dcd, int& off) {
       break;
     }
 
-    // decode_scan_segment(in_mmap, offset + l, offset + r);
+    // decode_ecs(in_mmap, offset + l, offset + r);
 
     done = true;
     if ((ptr[r + 1] & 0xf1) == 0xd0) {
@@ -386,54 +390,54 @@ void parse_scan_body(parser_state_t& psr, decoder_state_t& dcd, int& off) {
   off = r;
 }
 
-void parse_scan(parser_state_t& psr, decoder_state_t& dcd, int& off) {
-  parse_scan_prelude(psr, dcd, off);
-  parse_scan_hdr(psr, dcd, off);
-  parse_scan_body(psr, dcd, off);
+void parse_scan(parser_state_t& psr, int& off) {
+  parse_scan_prelude(psr, off);
+  parse_scan_hdr(psr, off);
+  parse_scan_body(psr, off);
 }
 
-int parse_frame_tbls(parser_state_t& psr, decoder_state_t& dcd, int& off) {
+int parse_frame_tbls(parser_state_t& psr, int& off) {
   int new_off = off;
   if (!parse_marker_segment(psr, new_off)) {
     return false;
   }
   switch (psr.mrk_seg.mrk) {
   case DHT:
-    setup_huffman_table(psr, dcd);
+    setup_huffman_table(psr);
     off = new_off;
     return true;
   case DQT:
-    setup_quantization_table(psr, dcd);
+    setup_quantization_table(psr);
     off = new_off;
     return true;
   }
   return false;
 }
 
-void parse_frame_prelude(parser_state_t& psr, decoder_state_t& dcd, int& off) {
+void parse_frame_prelude(parser_state_t& psr, int& off) {
   bool flag;
   do {
     flag = false;
-    flag |= parse_misc(psr, dcd, off);
-    flag |= parse_frame_tbls(psr, dcd, off);
+    flag |= parse_misc(psr, off);
+    flag |= parse_frame_tbls(psr, off);
   } while (flag);
 }
 
-void parse_frame_hdr(parser_state_t& psr, decoder_state_t& dcd, int& off) {
+void parse_frame_hdr(parser_state_t& psr, int& off) {
   parse_marker_segment(psr, off);
   if (psr.mrk_seg.mrk != SOFn) {
     throw std::logic_error("expecting frame header");
   }
-  setup_frame_param(psr, dcd);
+  setup_frame_param(psr);
 }
 
-void parse_frame(parser_state_t& psr, decoder_state_t& dcd, int& off) {
-  parse_frame_prelude(psr, dcd, off);
-  parse_frame_hdr(psr, dcd, off);
-  parse_scan(psr, dcd, off);
+void parse_frame(parser_state_t& psr, int& off) {
+  parse_frame_prelude(psr, off);
+  parse_frame_hdr(psr, off);
+  parse_scan(psr, off);
 }
 
-void parse_image(parser_state_t& psr, decoder_state_t& dcd) {
+void parse_image(parser_state_t& psr) {
   int off = 0;
 
   parse_marker_segment(psr, off);
@@ -441,7 +445,7 @@ void parse_image(parser_state_t& psr, decoder_state_t& dcd) {
     throw std::logic_error("expecting SOI");
   }
 
-  parse_frame(psr, dcd, off);
+  parse_frame(psr, off);
 
   parse_marker_segment(psr, off);
   if (psr.mrk_seg.mrk != EOI) {
