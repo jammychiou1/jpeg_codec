@@ -8,6 +8,8 @@
 #include "huffman.h"
 #include "quantize.h"
 
+const int max_comp_id = 8;
+
 struct component_param_t {
   int h;
   int v;
@@ -32,6 +34,8 @@ struct du_layout_t {
   int x_mcu;
   int y_scan_comp_du_per_mcu[4];
   int x_scan_comp_du_per_mcu[4];
+  int y_scan_comp_du[4];
+  int x_scan_comp_du[4];
   int n_du_per_mcu;
 };
 
@@ -55,17 +59,19 @@ struct scan_param_t {
   scan_state_t scan_state;
 };
 
+// TODO: better comp id lookup
 struct decoder_state_t {
   frame_param_t frame;
-  component_param_t comps[4];
-  quant_table* qtabs[4];
-  huffman_lut* htabs[2][4];
+  component_param_t comps[max_comp_id];
+  quant_table* qtabs[max_comp_id];
+  huffman_lut* htabs[2][max_comp_id];
 
   scan_param_t scan;
 
-  std::vector<uint8_t> pixels[4];
+  std::vector<std::vector<uint8_t>> pixels[max_comp_id];
 };
 
 void process_scan(decoder_state_t& dcd);
+void process_image(decoder_state_t& dcd);
 
 #endif // DECODER_H

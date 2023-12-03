@@ -31,11 +31,11 @@ const std::array<std::array<int16_t, 8>, 8> bases = [] {
 
 typedef __m128i int16x8_t;
 
-int16x8_t rdmulh(int16x8_t v, int16_t scl) {
+static int16x8_t rdmulh(int16x8_t v, int16_t scl) {
   return _mm_mulhrs_epi16(v, _mm_set1_epi16(scl));
 }
 
-void mul_cmpl_kara(int16x8_t a_r, int16x8_t a_i, int16_t b_r, int16_t b_i, int16x8_t& o_r, int16x8_t& o_i) {
+static void mul_cmpl_kara(int16x8_t a_r, int16x8_t a_i, int16_t b_r, int16_t b_i, int16x8_t& o_r, int16x8_t& o_i) {
   int16x8_t t1 = rdmulh(a_r, b_r);
   int16x8_t t2 = rdmulh(a_i, b_i);
   int16x8_t t3 = rdmulh(_mm_add_epi16(a_r, a_i), int(b_r + b_i) / 2);
@@ -43,7 +43,7 @@ void mul_cmpl_kara(int16x8_t a_r, int16x8_t a_i, int16_t b_r, int16_t b_i, int16
   o_i = _mm_sub_epi16(_mm_slli_epi16(t3, 1), _mm_add_epi16(t1, t2));
 }
 
-void idct_inter_vector(
+static void idct_inter_vector(
     int16x8_t s0, int16x8_t s1, int16x8_t s2, int16x8_t s3,
     int16x8_t s4, int16x8_t s5, int16x8_t s6, int16x8_t s7,
     int16x8_t& x0, int16x8_t& x1, int16x8_t& x2, int16x8_t& x3,
@@ -96,7 +96,7 @@ void idct_inter_vector(
 //   std::cerr << '\n';
 // }
 
-void idct_intra_vector(int16x8_t s, int16x8_t& x) {
+static void idct_intra_vector(int16x8_t s, int16x8_t& x) {
   int16x8_t b0 = _mm_load_si128((int16x8_t*) &bases[0]);
   // dump(b0);
   x = rdmulh(b0, _mm_extract_epi16(s, 0));

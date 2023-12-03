@@ -3,7 +3,7 @@
 
 #include <cstdint>
 
-void idct(int16_t in[8][8], uint8_t out[8][8]);
+static void idct(int16_t in[8][8], uint8_t out[8][8]);
 
 #include "dct_impl.h"
 
@@ -21,7 +21,7 @@ void idct(int16_t in[8][8], uint8_t out[8][8]);
 
 #include <algorithm>
 
-uint8_t lvl_shift_clip(int a) {
+static uint8_t lvl_shift_clip(int a) {
   a += 1 << 4;
   a >>= 5;
   a += 128;
@@ -32,7 +32,7 @@ uint8_t lvl_shift_clip(int a) {
 
 #if DCT_IMPL == DCT_IMPL_SCHOOLBOOK || DCT_IMPL == DCT_IMPL_FFT
 
-void idct(int16_t in[8][8], uint8_t out[8][8]) {
+static void idct(int16_t in[8][8], uint8_t out[8][8]) {
   for (int i = 0; i < 8; i++) {
     for (int j = 0; j < 8; j++) {
       in[i][j] <<= 3;
@@ -57,7 +57,7 @@ void idct(int16_t in[8][8], uint8_t out[8][8]) {
 
 // #include <iostream>
 
-void idct(int16_t in[8][8], uint8_t out[8][8]) {
+static void idct(int16_t in[8][8], uint8_t out[8][8]) {
   for (int i = 0; i < 8; i++) {
     for (int j = 0; j < 8; j++) {
       in[i][j] <<= 3;

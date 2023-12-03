@@ -14,11 +14,11 @@ const std::array<int16_t, 32> c32s = [] {
   return res;
 } ();
 
-int16_t mul_rshr(int16_t a, int16_t b, int sh) {
+static int16_t mul_rshr(int16_t a, int16_t b, int sh) {
   return (int32_t(a) * b + (1 << (sh - 1))) >> sh;
 }
 
-void idct_1d(int16_t in[8], int16_t out[8]) {
+static void idct_1d(int16_t in[8], int16_t out[8]) {
   int16_t tmp[8] = {}; // to support inplace
   for (int i = 0; i < 8; i++) {
     tmp[i] += mul_rshr(in[0], c32s[4], 15);

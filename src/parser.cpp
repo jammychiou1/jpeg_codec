@@ -4,7 +4,6 @@
 #include <array>
 #include <cstdint>
 #include <stdexcept>
-#include <utility>
 
 #include "decoder.h"
 #include "ecs_bitstream.h"
@@ -13,35 +12,10 @@
 #include "util.h"
 
 using std::max;
-using std::array, std::vector, std::pair;
+using std::array, std::vector;
 
 #include <iostream>
 using std::cerr;
-
-const array<pair<int, int>, 64> zigzag = [] {
-  int i = 0, j = 0;
-  int dir = -1;
-  array<pair<int, int>, 64> res = {};
-  for (int t = 1; t < 64; t++) {
-    if (i + dir < 0 || i + dir >= 8 || j - dir < 0 || j - dir >= 8) {
-      if (dir == -1) {
-        if (j + 1 < 8) j++;
-        else i++;
-      }
-      else {
-        if (i + 1 < 8) i++;
-        else j++;
-      }
-      dir *= -1;
-    }
-    else {
-      i += dir;
-      j -= dir;
-    }
-    res[t] = {i, j};
-  }
-  return res;
-} ();
 
 void read_u4_2(const uint8_t* ptr, int& off, int& high, int& low) {
   int b = ptr[off];
@@ -144,24 +118,31 @@ void setup_du_layout(parser_state_t& psr) {
   frame_param_t& frame = dcd->frame;
   scan_param_t& scan = dcd->scan;
 
+  int vmax = 0;
+  int hmax = 0;
+  for (int i = 0; i < frame.n_comp; i++) {
+    component_param_t& comp = dcd->comps[i];
+    vmax = max(vmax, comp.v);
+    hmax = max(hmax, comp.h);
+  }
+
   int y = frame.y;
   int x = frame.x;
   if (scan.n_scan_comp == 1) {
-    du_layout.y_mcu = (y - 1) / 8 + 1;
-    du_layout.x_mcu = (x - 1) / 8 + 1;
+    int comp_id = scan.scan_comps[0].id;
+    component_param_t& comp = dcd->comps[comp_id];
+
+    du_layout.y_mcu = (y - 1) / (vmax / comp.v * 8) + 1;
+    du_layout.x_mcu = (x - 1) / (hmax / comp.h * 8) + 1;
 
     du_layout.y_scan_comp_du_per_mcu[0] = 1;
     du_layout.x_scan_comp_du_per_mcu[0] = 1;
     du_layout.n_du_per_mcu = 1;
+
+    du_layout.y_scan_comp_du[0] = du_layout.y_mcu;
+    du_layout.x_scan_comp_du[0] = du_layout.x_mcu;
   }
   else {
-    int vmax = 0;
-    int hmax = 0;
-    for (int i = 0; i < frame.n_comp; i++) {
-      component_param_t& comp = dcd->comps[i];
-      vmax = max(vmax, comp.v);
-      hmax = max(hmax, comp.h);
-    }
 
     du_layout.y_mcu = (y - 1) / (vmax * 8) + 1;
     du_layout.x_mcu = (x - 1) / (hmax * 8) + 1;
@@ -173,9 +154,11 @@ void setup_du_layout(parser_state_t& psr) {
       du_layout.y_scan_comp_du_per_mcu[j] = comp.v;
       du_layout.x_scan_comp_du_per_mcu[j] = comp.h;
       du_layout.n_du_per_mcu += comp.v * comp.h;
+
+      du_layout.y_scan_comp_du[j] = du_layout.y_mcu * comp.v;
+      du_layout.x_scan_comp_du[j] = du_layout.x_mcu * comp.h;
     }
   }
-  // cerr << "expecting " << num_mcu << " MCUs, " << du_per_mcu << " DUs per MCU\n";
 
   scan.du_layout = du_layout;
 };
@@ -261,7 +244,7 @@ void setup_frame_param(parser_state_t& psr) {
     read_u8(ptr, off, Ci);
     read_u4_2(ptr, off, Hi, Vi);
     read_u8(ptr, off, Tqi);
-    if (Ci > 4) throw std::runtime_error("large id not supported");
+    if (Ci >= max_comp_id) throw std::runtime_error("large id not supported");
     if (Hi != 1 && Hi != 2 && Hi != 4) throw std::logic_error("bad Hi");
     if (Vi != 1 && Vi != 2 && Vi != 4) throw std::logic_error("bad Vi");
     cerr << "C" << i << ": " << Ci << '\n';
@@ -289,27 +272,25 @@ int decode_coef(int len, int bits) {
 
 void put_coefs_du(parser_state_t& psr, int16_t coefs_du[64]) {
   scan_param_t& scan = psr.dcd->scan;
-
   scan_state_t& scan_state = scan.scan_state;
+  du_layout_t& du_layout = scan.du_layout;
+
+  int& k_scan_comp = scan_state.k_scan_comp;
   int& i_mcu = scan_state.i_mcu;
   int& j_mcu = scan_state.j_mcu;
   int& i_du = scan_state.i_du;
   int& j_du = scan_state.j_du;
-  int& k_scan_comp = scan_state.k_scan_comp;
-  int& comp_id = scan.scan_comps[k_scan_comp].id;
-  vector<array<int16_t, 64>>& coefs = scan_state.coefs[k_scan_comp];
 
-  du_layout_t& du_layout = scan.du_layout;
-  int& y_mcu = du_layout.y_mcu;
-  int& x_mcu = du_layout.x_mcu;
-  int& y_scan_comp_du_per_mcu = du_layout.y_scan_comp_du_per_mcu[comp_id];
-  int& x_scan_comp_du_per_mcu = du_layout.x_scan_comp_du_per_mcu[comp_id];
+  int& y_scan_comp_du_per_mcu = du_layout.y_scan_comp_du_per_mcu[k_scan_comp];
+  int& x_scan_comp_du_per_mcu = du_layout.x_scan_comp_du_per_mcu[k_scan_comp];
+  int& y_scan_comp_du = du_layout.y_scan_comp_du[k_scan_comp];
+  int& x_scan_comp_du = du_layout.x_scan_comp_du[k_scan_comp];
 
-  int y_scan_comp_du = y_mcu * y_scan_comp_du_per_mcu;
-  int x_scan_comp_du = x_mcu * x_scan_comp_du_per_mcu;
   int i_scan_comp_du = i_mcu * y_scan_comp_du_per_mcu + i_du;
   int j_scan_comp_du = j_mcu * x_scan_comp_du_per_mcu + j_du;
   int loc = i_scan_comp_du * x_scan_comp_du + j_scan_comp_du;
+
+  vector<array<int16_t, 64>>& coefs = scan_state.coefs[k_scan_comp];
   for (int t = 0; t < 64; t++) {
     coefs[loc][t] = coefs_du[t];
   }
@@ -352,6 +333,7 @@ void decode_du(parser_state_t& psr, ecs_bitstream& bs, const huffman_lut* htab_d
   for (int t = 0; t < 64; t++) {
     coefs_du[t] *= qtab->arr[t];
   }
+  put_coefs_du(psr, coefs_du);
 }
 
 void decode_mcu(parser_state_t& psr, ecs_bitstream& bs) {
@@ -520,9 +502,9 @@ void init_scan_state(parser_state_t& psr) {
   int y_mcu = du_layout.y_mcu;
   int x_mcu = du_layout.x_mcu;
   for (int k = 0; k < scan.n_scan_comp; k++) {
-    int y_scan_comp_du_per_mcu = du_layout.y_scan_comp_du_per_mcu[k];
-    int x_scan_comp_du_per_mcu = du_layout.x_scan_comp_du_per_mcu[k];
-    scan_state.coefs[k].resize(y_mcu * x_mcu * y_scan_comp_du_per_mcu * x_scan_comp_du_per_mcu);
+    int y_scan_comp_du = du_layout.y_scan_comp_du[k];
+    int x_scan_comp_du = du_layout.x_scan_comp_du[k];
+    scan_state.coefs[k].resize(y_scan_comp_du * x_scan_comp_du);
   }
 
   scan.scan_state = scan_state;
@@ -614,4 +596,6 @@ void parse_image(parser_state_t& psr) {
 
   parse_marker_segment(psr, off);
   if (psr.mrk_seg.mrk != EOI) throw std::logic_error("expecting EOI");
+
+  process_image(*psr.dcd);
 }

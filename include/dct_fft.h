@@ -14,11 +14,11 @@ const std::array<int16_t, 8> c32s = [] {
   return res;
 } ();
 
-int16_t mul_rshr(int16_t a, int16_t b, int sh) {
+static int16_t mul_rshr(int16_t a, int16_t b, int sh) {
   return (int32_t(a) * b + (1 << (sh - 1))) >> sh;
 }
 
-void mul_cmpl_kara(int16_t a_r, int16_t a_i, int16_t b_r, int16_t b_i, int16_t& o_r, int16_t& o_i) {
+static void mul_cmpl_kara(int16_t a_r, int16_t a_i, int16_t b_r, int16_t b_i, int16_t& o_r, int16_t& o_i) {
   int16_t t1 = mul_rshr(a_r, b_r, 15);
   int16_t t2 = mul_rshr(a_i, b_i, 15);
   int16_t t3 = mul_rshr((a_r + a_i), int32_t(b_r + b_i) / 2, 15);
@@ -26,7 +26,7 @@ void mul_cmpl_kara(int16_t a_r, int16_t a_i, int16_t b_r, int16_t b_i, int16_t& 
   o_i = 2 * int(t3) - t1 - t2;
 }
 
-void idct_1d(int16_t in[8], int16_t out[8]) {
+static void idct_1d(int16_t in[8], int16_t out[8]) {
   int16_t a1_r = mul_rshr(c32s[1], in[1], 15);
   int16_t a1_i = mul_rshr(c32s[7], in[1], 15);
   int16_t a7_r = mul_rshr(c32s[7], in[7], 15);

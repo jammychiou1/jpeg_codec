@@ -1,3 +1,5 @@
+import sys
+
 def entropy_coded(data):
     output = b''
     while True:
@@ -22,6 +24,7 @@ def entropy_coded(data):
 def parse(data):
     while True:
         marker, data = data[:2], data[2:]
+        print(marker)
         if not marker.startswith(b'\xff'):
             return 'error'
         if marker in [b'\xff\xd8', b'\xff\xd9']:
@@ -37,8 +40,6 @@ def parse(data):
         else:
             return 'error'
 
-import sys
-# filenames = ['../imgs/teatime.jpg', '../imgs/gig-sn01.jpg', '../imgs/gig-sn08.jpg', '../imgs/monalisa.jpg', '/home/jammychiou1/workspace/scanned/BG.jpg', '/home/jammychiou1/workspace/scanned/wallpaper_1.jpg']
 
 with open(sys.argv[1], 'rb') as f:
     data = f.read()
