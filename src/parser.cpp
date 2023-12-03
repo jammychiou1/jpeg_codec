@@ -49,12 +49,12 @@ void setup_huffman_table(parser_state_t& psr) {
     read_u4_2(ptr, off, Tc, Th);
     if (Tc < 0 || Tc > 1) throw std::logic_error("bad Tc");
     if (Th < 0 || Th > 3) throw std::logic_error("bad Th");
-    cerr << "Tc, Th: " << Tc << ", " << Th << '\n';
+    // cerr << "Tc, Th: " << Tc << ", " << Th << '\n';
 
     int Li_s[16];
     for (int i = 0; i < 16; i++) {
       read_u8(ptr, off, Li_s[i]);
-      cerr << "L" << i << ": " << Li_s[i] << '\n';
+      // cerr << "L" << i << ": " << Li_s[i] << '\n';
     }
 
     // TODO separate lut compilation function
@@ -90,13 +90,13 @@ void setup_quantization_table(parser_state_t& psr) {
     read_u4_2(ptr, off, Pq, Tq);
     if (Pq < 0 || Pq > 1) throw std::logic_error("bad Pq");
     if (Tq < 0 || Tq > 3) throw std::logic_error("bad Tq");
-    cerr << "Pq, Tq: " << Pq << ", " << Tq << '\n';
+    // cerr << "Pq, Tq: " << Pq << ", " << Tq << '\n';
 
     int Qk_s[64];
     for (int k = 0; k < 64; k++) {
       if (Pq == 0) read_u8(ptr, off, Qk_s[k]);
       else read_u16(ptr, off, Qk_s[k]);
-      cerr << "Q" << k << ": " << Qk_s[k] << '\n';
+      // cerr << "Q" << k << ": " << Qk_s[k] << '\n';
     }
 
     quant_table* qtab = new quant_table();
@@ -177,7 +177,7 @@ void setup_scan_param(parser_state_t& psr) {
   int Ns;
   read_u8(ptr, off, Ns);
   if (Ns > 4) throw std::logic_error("bad Ns");
-  cerr << "Ns: " << Ns << '\n';
+  // cerr << "Ns: " << Ns << '\n';
 
   scan.n_scan_comp = Ns;
 
@@ -187,8 +187,8 @@ void setup_scan_param(parser_state_t& psr) {
     read_u4_2(ptr, off, Tdj, Taj);
     if (Tdj < 0 || Tdj > 3) throw std::logic_error("bad Tdj");
     if (Taj < 0 || Taj > 3) throw std::logic_error("bad Taj");
-    cerr << "Cs" << j << ": " << Csj << '\n';
-    cerr << "Td" << j << ", Ta" << j << ": " << Tdj << ", " << Taj << '\n';
+    // cerr << "Cs" << j << ": " << Csj << '\n';
+    // cerr << "Td" << j << ", Ta" << j << ": " << Tdj << ", " << Taj << '\n';
 
     scan_comp_param_t scan_comp;
     scan_comp.id = Csj;
@@ -202,9 +202,9 @@ void setup_scan_param(parser_state_t& psr) {
   read_u8(ptr, off, Ss);
   read_u8(ptr, off, Se);
   read_u4_2(ptr, off, Ah, Al);
-  cerr << "Ss: " << Ss << '\n';
-  cerr << "Se: " << Se << '\n';
-  cerr << "Ah, Al: " << Ah << ", " << Al << '\n';
+  // cerr << "Ss: " << Ss << '\n';
+  // cerr << "Se: " << Se << '\n';
+  // cerr << "Ah, Al: " << Ah << ", " << Al << '\n';
 
   if (off != end) throw std::logic_error("bad scan header size");
 
@@ -228,10 +228,10 @@ void setup_frame_param(parser_state_t& psr) {
   read_u16(ptr, off, X);
   read_u8(ptr, off, Nf);
   if (Nf <= 0 || Nf > 4) throw std::logic_error("bad component count");
-  cerr << "P: " << P << '\n';
-  cerr << "Y: " << Y << '\n';
-  cerr << "X: " << X << '\n';
-  cerr << "Nf: " << Nf << '\n';
+  // cerr << "P: " << P << '\n';
+  // cerr << "Y: " << Y << '\n';
+  // cerr << "X: " << X << '\n';
+  // cerr << "Nf: " << Nf << '\n';
 
   frame.p = P;
   frame.y = Y;
@@ -247,9 +247,9 @@ void setup_frame_param(parser_state_t& psr) {
     if (Ci >= max_comp_id) throw std::runtime_error("large id not supported");
     if (Hi != 1 && Hi != 2 && Hi != 4) throw std::logic_error("bad Hi");
     if (Vi != 1 && Vi != 2 && Vi != 4) throw std::logic_error("bad Vi");
-    cerr << "C" << i << ": " << Ci << '\n';
-    cerr << "H" << i << ", V" << i << ": " << Hi << ", " << Vi << '\n';
-    cerr << "Tq" << i << ": " << Tqi << '\n';
+    // cerr << "C" << i << ": " << Ci << '\n';
+    // cerr << "H" << i << ", V" << i << ": " << Hi << ", " << Vi << '\n';
+    // cerr << "Tq" << i << ": " << Tqi << '\n';
 
     component_param_t comp = {};
     comp.h = Hi;
@@ -299,12 +299,12 @@ void put_coefs_du(parser_state_t& psr, int16_t coefs_du[64]) {
 void decode_du(parser_state_t& psr, ecs_bitstream& bs, const huffman_lut* htab_dc, const huffman_lut* htab_ac, const quant_table* qtab) {
   int16_t coefs_du[64] = {};
 
-  cerr << "DC:\n";
+  // cerr << "DC:\n";
   {
     int cate = bs.get_huffman(htab_dc);
     int diff = decode_coef(cate, bs.get_k(cate));
     coefs_du[0] = diff;
-    cerr << "  " << diff << '\n';
+    // cerr << "  " << diff << '\n';
 
     scan_param_t& scan = psr.dcd->scan;
     scan_state_t& scan_state = scan.scan_state;
@@ -314,7 +314,7 @@ void decode_du(parser_state_t& psr, ecs_bitstream& bs, const huffman_lut* htab_d
     last_dc = coefs_du[0];
   }
 
-  cerr << "AC:\n";
+  // cerr << "AC:\n";
   {
     for (int t = 1; t < 64; t++) {
       int tmp = bs.get_huffman(htab_ac);
@@ -326,7 +326,7 @@ void decode_du(parser_state_t& psr, ecs_bitstream& bs, const huffman_lut* htab_d
       int cate = tmp % 16;
       int diff = decode_coef(cate, bs.get_k(cate));
       coefs_du[t] = diff;
-      cerr << "  " << t << "  " << diff << '\n';
+      // cerr << "  " << t << "  " << diff << '\n';
     }
   }
 
@@ -346,7 +346,7 @@ void decode_mcu(parser_state_t& psr, ecs_bitstream& bs) {
   int& j = scan_state.j_du;
 
   for (k = 0; k < scan.n_scan_comp; k++) {
-    cerr << "scan comp " << k << '\n';
+    // cerr << "scan comp " << k << '\n';
     scan_comp_param_t& scan_comp = scan.scan_comps[k];
     component_param_t& comp = psr.dcd->comps[scan_comp.id];
     const huffman_lut* htab_dc = psr.dcd->htabs[0][scan_comp.td];
@@ -377,7 +377,7 @@ void decode_ecs(parser_state_t& psr, int begin, int end) {
   int y_mcu = du_layout.y_mcu;
   int x_mcu = du_layout.x_mcu;
   for (t = 0; t < y_mcu * x_mcu; t++) {
-    cerr << "MCU " << t << '\n';
+    // cerr << "MCU " << t << '\n';
     decode_mcu(psr, bs);
     j++;
     if (j >= x_mcu) {

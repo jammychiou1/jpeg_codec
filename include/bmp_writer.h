@@ -7,7 +7,7 @@ struct bmp_writer {
   int width;
   int height;
   int padded_width;
-  mapped_outfile mmap;
+  uint8_t* ptr;
   void new_file(std::string filename, int width, int height);
 };
 

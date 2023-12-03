@@ -2,14 +2,17 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <utility>
 #include <vector>
 using std::vector, std::array, std::pair;
-using std::max;
+using std::max, std::min, std::round;
 
 #include "dct_impl.h"
 #define DCT_IMPL DCT_IMPL_SSSE3
 #include "dct.h"
+
+#include "bmp_writer.h"
 
 #include <iostream>
 using std::cerr, std::cout;
@@ -52,7 +55,7 @@ void process_scan(decoder_state_t& dcd) {
     hmax = max(hmax, comp.h);
   }
 
-  cerr << "now processing...\n";
+  // cerr << "now processing...\n";
   du_layout_t& du_layout = scan.du_layout;
   for (int k = 0; k < scan.n_scan_comp; k++) {
     int& comp_id = scan.scan_comps[k].id;
@@ -63,19 +66,19 @@ void process_scan(decoder_state_t& dcd) {
     vector<vector<uint8_t>>& pixels = dcd.pixels[comp_id];
     pixels = vector<vector<uint8_t>>(frame.y, vector<uint8_t>(frame.x));
 
-    cerr << "scan comp " << k << ", comp id = " << comp_id << '\n';
-    cerr << "  v upsamp = " << v_upsamp << ", h upsamp = " << h_upsamp << '\n';
-    cerr << "  du rows = " << du_layout.y_scan_comp_du[k] << ", cols = " << du_layout.x_scan_comp_du[k] << '\n';
+    // cerr << "scan comp " << k << ", comp id = " << comp_id << '\n';
+    // cerr << "  v upsamp = " << v_upsamp << ", h upsamp = " << h_upsamp << '\n';
+    // cerr << "  du rows = " << du_layout.y_scan_comp_du[k] << ", cols = " << du_layout.x_scan_comp_du[k] << '\n';
 
     int now_scan_comp_du = 0;
     vector<array<int16_t, 64>>& coefs = scan.scan_state.coefs[k];
     for (int i_du = 0; i_du < du_layout.y_scan_comp_du[k]; i_du++) {
       for (int j_du = 0; j_du < du_layout.x_scan_comp_du[k]; j_du++) {
         array<int16_t, 64>& coef_list = coefs[now_scan_comp_du];
-        for (int t = 0; t < 64; t++) {
-          cerr << coef_list[t] << ' ';
-        }
-        cerr << '\n';
+        // for (int t = 0; t < 64; t++) {
+        //   cerr << coef_list[t] << ' ';
+        // }
+        // cerr << '\n';
 
         int16_t coef_block[8][8] = {};
         for (int t = 0; t < 64; t++) {
@@ -100,7 +103,7 @@ void process_scan(decoder_state_t& dcd) {
 
         now_scan_comp_du++;
       }
-      cerr << '\n';
+      // cerr << '\n';
     }
   }
 }
@@ -108,13 +111,28 @@ void process_scan(decoder_state_t& dcd) {
 void process_image(decoder_state_t& dcd) {
   frame_param_t& frame = dcd.frame;
   component_param_t* comps = &dcd.comps[0];
-  cout << frame.y << ' ' << frame.x << '\n';
-  for (int k = 1; k <= 3; k++) {
-    vector<vector<uint8_t>>& pixels = dcd.pixels[k];
-    for (int i = 0; i < frame.y; i++) {
-      for (int j = 0; j < frame.x; j++) {
-        cout << int(pixels[i][j]) << " \n"[j == frame.x - 1];
-      }
+
+  bmp_writer wrt;
+  wrt.new_file("test.bmp", frame.y, frame.x);
+
+  vector<vector<uint8_t>>* pixels = &dcd.pixels[0];
+  for (int i = 0; i < frame.y; i++) {
+    for (int j = 0; j < frame.x; j++) {
+      double y = pixels[1][i][j];
+      double cb = pixels[2][i][j];
+      double cr = pixels[3][i][j];
+
+      int r = round(y + 1.402 * (cr - 128));
+      int g = round(y - 0.344136 * (cb - 128) - 0.714136 * (cr - 128));
+      int b = round(y + 1.402 * (cb - 128));
+      r = max(0, min(255, r));
+      g = max(0, min(255, g));
+      b = max(0, min(255, b));
+
+      int begin = 54 + (frame.y - 1 - i) * wrt.padded_width + j * 3;
+      wrt.ptr[begin + 2] = r;
+      wrt.ptr[begin + 1] = g;
+      wrt.ptr[begin + 0] = b;
     }
   }
 }
