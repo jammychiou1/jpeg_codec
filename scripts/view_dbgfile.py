@@ -12,6 +12,13 @@ for k in range(3):
     for i, row in enumerate(data[1 + Y * k : 1 + Y * (k + 1)]):
         ycbcr[i, :, k] = row
 
+plt.imshow(ycbcr[:, :, 0] / 255)
+plt.show()
+plt.imshow(ycbcr[:, :, 1] / 255)
+plt.show()
+plt.imshow(ycbcr[:, :, 2] / 255)
+plt.show()
+
 rgb = np.zeros((Y, X, 3))
 for i in range(Y):
     for j in range(X):

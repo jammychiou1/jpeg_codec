@@ -17,6 +17,7 @@ struct component_param_t {
 };
 
 struct frame_param_t {
+  int mode;
   int p;
   int y;
   int x;
@@ -65,6 +66,8 @@ struct decoder_state_t {
   component_param_t comps[max_comp_id];
   quant_table* qtabs[max_comp_id];
   huffman_lut* htabs[2][max_comp_id];
+  int restart_interval;
+  std::vector<int> comp_ord;
 
   scan_param_t scan;
 

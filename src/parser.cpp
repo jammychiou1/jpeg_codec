@@ -89,6 +89,7 @@ void setup_quantization_table(parser_state_t& psr) {
     int Pq, Tq;
     read_u4_2(ptr, off, Pq, Tq);
     if (Pq < 0 || Pq > 1) throw std::logic_error("bad Pq");
+    if (Pq != 0) throw std::logic_error("12 bit precision not supported");
     if (Tq < 0 || Tq > 3) throw std::logic_error("bad Tq");
     // cerr << "Pq, Tq: " << Pq << ", " << Tq << '\n';
 
@@ -221,13 +222,17 @@ void setup_frame_param(parser_state_t& psr) {
   off += 2;
 
   frame_param_t frame = {};
+  frame.mode = psr.mrk_seg.sub;
+  if (frame.mode != 0 && frame.mode != 2) throw std::logic_error("unsupported mode");
 
   int P, Y, X, Nf;
   read_u8(ptr, off, P);
   read_u16(ptr, off, Y);
   read_u16(ptr, off, X);
   read_u8(ptr, off, Nf);
+  if (P != 8) throw std::logic_error("12 bit precision not supported");
   if (Nf <= 0 || Nf > 4) throw std::logic_error("bad component count");
+  if (Nf != 3) throw std::logic_error("only support 3 component images, in the order of Y, Cb, Cr");
   // cerr << "P: " << P << '\n';
   // cerr << "Y: " << Y << '\n';
   // cerr << "X: " << X << '\n';
@@ -244,7 +249,7 @@ void setup_frame_param(parser_state_t& psr) {
     read_u8(ptr, off, Ci);
     read_u4_2(ptr, off, Hi, Vi);
     read_u8(ptr, off, Tqi);
-    if (Ci >= max_comp_id) throw std::runtime_error("large id not supported");
+    if (Ci >= max_comp_id) throw std::runtime_error("large component id not supported");
     if (Hi != 1 && Hi != 2 && Hi != 4) throw std::logic_error("bad Hi");
     if (Vi != 1 && Vi != 2 && Vi != 4) throw std::logic_error("bad Vi");
     // cerr << "C" << i << ": " << Ci << '\n';
@@ -256,11 +261,25 @@ void setup_frame_param(parser_state_t& psr) {
     comp.v = Vi;
     comp.q = Tqi;
     dcd->comps[Ci] = comp;
+
+    dcd->comp_ord.push_back(Ci);
   }
 
   if (off != end) throw std::logic_error("bad frame header size");
 
   dcd->frame = frame;
+}
+
+void setup_restart_interval(parser_state_t& psr) {
+  decoder_state_t* dcd = psr.dcd;
+  const uint8_t* ptr = psr.ptr;
+  int off = psr.mrk_seg.off + 2;
+  int len = psr.mrk_seg.len;
+
+  off += 2;
+  int ri;
+  read_u16(ptr, off, ri);
+  dcd->restart_interval = ri;
 }
 
 int decode_coef(int len, int bits) {
@@ -373,10 +392,16 @@ void decode_ecs(parser_state_t& psr, int begin, int end) {
   int& i = scan_state.i_mcu;
   int& j = scan_state.j_mcu;
   int& t = scan_state.now_mcu;
+  int t_last = t;
+
+  for (int k = 0; k < scan.n_scan_comp; k++) {
+    scan_state.last_dcs[k] = 0;
+  }
 
   int y_mcu = du_layout.y_mcu;
   int x_mcu = du_layout.x_mcu;
-  for (t = 0; t < y_mcu * x_mcu; t++) {
+  for (; t < y_mcu * x_mcu; t++) {
+    if (psr.dcd->restart_interval != 0 && t - t_last >= psr.dcd->restart_interval) return;
     // cerr << "MCU " << t << '\n';
     decode_mcu(psr, bs);
     j++;
@@ -453,8 +478,9 @@ bool parse_misc(parser_state_t& psr, int& off) {
   int new_off = off;
   if (!parse_marker_segment(psr, new_off)) return false;
   switch (psr.mrk_seg.mrk) {
-  case APPn:
   case DRI:
+    setup_restart_interval(psr);
+  case APPn:
   case COM:
     off = new_off;
     return true;
@@ -533,7 +559,7 @@ void parse_scan_body(parser_state_t& psr, int& off) {
     decode_ecs(psr, l, r);
 
     done = true;
-    if ((ptr[r + 1] & 0xf1) == 0xd0) {
+    if ((ptr[r + 1] & 0xf8) == 0xd0) {
       done = false;
       l = r + 2;
     }

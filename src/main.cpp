@@ -93,10 +93,13 @@ int main(int argc, char** argv) {
   parser.dcd = &decoder;
   parse_image(parser);
 
+  int y_id = decoder.comp_ord[0];
+  int cb_id = decoder.comp_ord[1];
+  int cr_id = decoder.comp_ord[2];
   if (dbg_filename != "") {
-    save_dbg(decoder.frame.y, decoder.frame.x, dbg_filename, decoder.pixels[1], decoder.pixels[2], decoder.pixels[3]);
+    save_dbg(decoder.frame.y, decoder.frame.x, dbg_filename, decoder.pixels[y_id], decoder.pixels[cb_id], decoder.pixels[cr_id]);
   }
   if (bmp_filename != "") {
-    save_bmp(decoder.frame.y, decoder.frame.x, bmp_filename, decoder.pixels[1], decoder.pixels[2], decoder.pixels[3]);
+    save_bmp(decoder.frame.y, decoder.frame.x, bmp_filename, decoder.pixels[y_id], decoder.pixels[cb_id], decoder.pixels[cr_id]);
   }
 }
