@@ -41,6 +41,28 @@ const array<pair<int, int>, 64> zigzag = [] {
   return res;
 } ();
 
+void unzigzag(int16_t coef_block[8][8], int16_t coef_list[64]) {
+  for (int t = 0; t < 64; t++) {
+    coef_block[zigzag[t].first][zigzag[t].second] = coef_list[t];
+  }
+}
+
+void put_pixel_block(int framey, int framex, int v_upsamp, int h_upsamp, int i_du, int j_du, vector<vector<uint8_t>>& pixels, uint8_t pixel_block[8][8]) {
+  for (int i_pxl = 0; i_pxl < 8; i_pxl++) {
+    for (int j_pxl = 0; j_pxl < 8; j_pxl++) {
+      for (int i_sub = 0; i_sub < v_upsamp; i_sub++) {
+        for (int j_sub = 0; j_sub < h_upsamp; j_sub++) {
+          int y = (i_du * 8 + i_pxl) * v_upsamp + i_sub;
+          int x = (j_du * 8 + j_pxl) * h_upsamp + j_sub;
+          if (0 <= y && y < framey && 0 <= x && x < framex) {
+            pixels[y][x] = pixel_block[i_pxl][j_pxl];
+          }
+        }
+      }
+    }
+  }
+}
+
 void process_scan(decoder_state_t& dcd) {
   frame_param_t& frame = dcd.frame;
   scan_param_t& scan = dcd.scan;
@@ -80,25 +102,13 @@ void process_scan(decoder_state_t& dcd) {
         // cerr << '\n';
 
         int16_t coef_block[8][8] = {};
-        for (int t = 0; t < 64; t++) {
-          coef_block[zigzag[t].first][zigzag[t].second] = coef_list[t];
-        }
+
+        unzigzag(coef_block, &coef_list[0]);
+
         uint8_t pixel_block[8][8] = {};
         idct(coef_block, pixel_block);
 
-        for (int i_pxl = 0; i_pxl < 8; i_pxl++) {
-          for (int j_pxl = 0; j_pxl < 8; j_pxl++) {
-            for (int i_sub = 0; i_sub < v_upsamp; i_sub++) {
-              for (int j_sub = 0; j_sub < h_upsamp; j_sub++) {
-                int y = (i_du * 8 + i_pxl) * v_upsamp + i_sub;
-                int x = (j_du * 8 + j_pxl) * h_upsamp + j_sub;
-                if (0 <= y && y < frame.y && 0 <= x && x < frame.x) {
-                  pixels[y][x] = pixel_block[i_pxl][j_pxl];
-                }
-              }
-            }
-          }
-        }
+        put_pixel_block(frame.y, frame.x, v_upsamp, h_upsamp, i_du, j_du, pixels, pixel_block);
 
         now_scan_comp_du++;
       }
