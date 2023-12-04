@@ -596,6 +596,4 @@ void parse_image(parser_state_t& psr) {
 
   parse_marker_segment(psr, off);
   if (psr.mrk_seg.mrk != EOI) throw std::logic_error("expecting EOI");
-
-  process_image(*psr.dcd);
 }

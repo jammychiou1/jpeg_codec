@@ -1,3 +1,5 @@
 build
 imgs
 *.dump
+*.dbg
+*.bmp
