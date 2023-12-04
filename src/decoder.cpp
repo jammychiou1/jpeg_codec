@@ -47,7 +47,7 @@ void unzigzag(int16_t coef_block[8][8], int16_t coef_list[64]) {
   }
 }
 
-void put_pixel_block(int framey, int framex, int v_upsamp, int h_upsamp, int i_du, int j_du, vector<vector<uint8_t>>& pixels, uint8_t pixel_block[8][8]) {
+void put_pixel_block(int framey, int framex, int v_upsamp, int h_upsamp, int i_du, int j_du, vector<uint8_t>& pixels, uint8_t pixel_block[8][8]) {
   for (int i_pxl = 0; i_pxl < 8; i_pxl++) {
     for (int j_pxl = 0; j_pxl < 8; j_pxl++) {
       for (int i_sub = 0; i_sub < v_upsamp; i_sub++) {
@@ -55,7 +55,7 @@ void put_pixel_block(int framey, int framex, int v_upsamp, int h_upsamp, int i_d
           int y = (i_du * 8 + i_pxl) * v_upsamp + i_sub;
           int x = (j_du * 8 + j_pxl) * h_upsamp + j_sub;
           if (0 <= y && y < framey && 0 <= x && x < framex) {
-            pixels[y][x] = pixel_block[i_pxl][j_pxl];
+            pixels[y * framex + x] = pixel_block[i_pxl][j_pxl];
           }
         }
       }
@@ -84,8 +84,8 @@ void process_scan(decoder_state_t& dcd) {
     int v_upsamp = vmax / comp.v;
     int h_upsamp = hmax / comp.h;
 
-    vector<vector<uint8_t>>& pixels = dcd.pixels[comp_id];
-    pixels = vector<vector<uint8_t>>(frame.y, vector<uint8_t>(frame.x));
+    vector<uint8_t>& pixels = dcd.pixels[comp_id];
+    pixels.resize(frame.y * frame.x);
 
     // cerr << "scan comp " << k << ", comp id = " << comp_id << '\n';
     // cerr << "  v upsamp = " << v_upsamp << ", h upsamp = " << h_upsamp << '\n';

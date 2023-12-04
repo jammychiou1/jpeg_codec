@@ -68,7 +68,7 @@ struct decoder_state_t {
 
   scan_param_t scan;
 
-  std::vector<std::vector<uint8_t>> pixels[max_comp_id];
+  std::vector<uint8_t> pixels[max_comp_id];
 };
 
 void process_scan(decoder_state_t& dcd);

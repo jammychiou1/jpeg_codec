@@ -19,35 +19,35 @@ using std::ofstream;
 parser_state_t parser;
 decoder_state_t decoder;
 
-void save_dbg(int height, int width, string dbg_filename, vector<vector<uint8_t>>& y_data, vector<vector<uint8_t>>& cb_data, vector<vector<uint8_t>>& cr_data) {
+void save_dbg(int height, int width, string dbg_filename, vector<uint8_t>& y_data, vector<uint8_t>& cb_data, vector<uint8_t>& cr_data) {
   ofstream file(dbg_filename);
   file << height << ' ' << width << '\n';
   for (int i = 0; i < height; i++) {
     for (int j = 0; j < width; j++) {
-      file << int(y_data[i][j]) << " \n"[j == width - 1];
+      file << int(y_data[i * width + j]) << " \n"[j == width - 1];
     }
   }
   for (int i = 0; i < height; i++) {
     for (int j = 0; j < width; j++) {
-      file << int(cb_data[i][j]) << " \n"[j == width - 1];
+      file << int(cb_data[i * width + j]) << " \n"[j == width - 1];
     }
   }
   for (int i = 0; i < height; i++) {
     for (int j = 0; j < width; j++) {
-      file << int(cr_data[i][j]) << " \n"[j == width - 1];
+      file << int(cr_data[i * width + j]) << " \n"[j == width - 1];
     }
   }
 }
 
-void save_bmp(int height, int width, string bmp_filename, vector<vector<uint8_t>>& y_data, vector<vector<uint8_t>>& cb_data, vector<vector<uint8_t>>& cr_data) {
+void save_bmp(int height, int width, string bmp_filename, vector<uint8_t>& y_data, vector<uint8_t>& cb_data, vector<uint8_t>& cr_data) {
   bmp_writer wrt;
   wrt.new_file(bmp_filename, height, width);
 
   for (int i = 0; i < height; i++) {
     for (int j = 0; j < width; j++) {
-      double y = y_data[i][j];
-      double cb = cb_data[i][j];
-      double cr = cr_data[i][j];
+      double y = y_data[i * width + j];
+      double cb = cb_data[i * width + j];
+      double cr = cr_data[i * width + j];
 
       int r = round(y + 1.402 * (cr - 128));
       int g = round(y - 0.344136 * (cb - 128) - 0.714136 * (cr - 128));
